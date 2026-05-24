@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VoiceChat</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0a0a0f;
+    --surface:   #13131a;
+    --surface2:  #1c1c28;
+    --border:    #2a2a3a;
+    --accent:    #7c6af7;
+    --accent2:   #a78bfa;
+    --user-bg:   #1e1b3a;
+    --bot-bg:    #131320;
+    --text:      #e8e6f0;
+    --muted:     #6b6880;
+    --danger:    #f87171;
+    --green:     #34d399;
+    --radius:    14px;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; }
+
+  /* ── Layout ── */
+  .app { display: flex; flex-direction: column; height: 100vh; max-width: 780px; margin: 0 auto; }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .logo-orb {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #c084fc);
+    display: flex; align-items: center; justify-content: center;
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+  .logo-orb svg { width: 18px; height: 18px; fill: white; }
+  header h1 { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
+  header h1 span { color: var(--accent2); }
+  .status-pill {
+    margin-left: auto; font-size: 11px; padding: 4px 10px;
+    border-radius: 20px; border: 1px solid var(--border);
+    color: var(--muted); display: flex; align-items: center; gap: 6px;
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .status-dot.off { background: var(--muted); }
+
+  /* ── Chat area ── */
+  #chat {
+    flex: 1; overflow-y: auto; padding: 24px 20px;
+    display: flex; flex-direction: column; gap: 16px;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+
+  .msg {
+    display: flex; gap: 12px; animation: fadeUp 0.3s ease;
+    max-width: 88%;
+  }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.bot  { align-self: flex-start; }
+
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; font-family: 'Syne', sans-serif;
+  }
+  .msg.user .avatar { background: var(--user-bg); border: 1px solid var(--accent); color: var(--accent2); }
+  .msg.bot  .avatar { background: linear-gradient(135deg, var(--accent), #c084fc); color: white; }
+
+  .bubble {
+    padding: 12px 16px; border-radius: var(--radius);
+    font-size: 14px; line-height: 1.65; max-width: 100%;
+  }
+  .msg.user .bubble {
+    background: var(--user-bg); border: 1px solid #3d3570;
+    border-bottom-right-radius: 4px; color: #d4c8ff;
+  }
+  .msg.bot .bubble {
+    background: var(--bot-bg); border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+  }
+  .bubble .label {
+    font-size: 10px; color: var(--muted); margin-bottom: 5px;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+
+  /* Thinking dots */
+  .thinking { display: flex; gap: 5px; padding: 4px 0; }
+  .thinking span {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+    animation: blink 1.2s ease-in-out infinite;
+  }
+  .thinking span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking span:nth-child(3) { animation-delay: 0.4s; }
+
+  /* ── Waveform visualizer ── */
+  #visualizer-wrap {
+    display: flex; justify-content: center; align-items: center;
+    padding: 10px 0; height: 60px; gap: 3px;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  #visualizer-wrap.active { opacity: 1; }
+  .bar {
+    width: 4px; background: var(--accent); border-radius: 2px;
+    height: 6px; transition: height 0.05s ease;
+  }
+
+  /* ── Controls ── */
+  .controls {
+    padding: 16px 20px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+
+  #timer {
+    text-align: center; font-size: 11px; color: var(--muted);
+    letter-spacing: 2px; height: 16px;
+  }
+
+  .btn-row { display: flex; gap: 10px; justify-content: center; }
+
+  .btn {
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    border: none; cursor: pointer; border-radius: 50px;
+    transition: all 0.2s; display: flex; align-items: center; gap: 8px;
+    letter-spacing: 0.3px;
+  }
+
+  #mic-btn {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #9333ea);
+    color: white; font-size: 26px;
+    box-shadow: 0 0 0 0 rgba(124,106,247,0.5);
+    transition: all 0.2s;
+  }
+  #mic-btn:hover { transform: scale(1.05); }
+  #mic-btn.recording {
+    background: var(--danger);
+    animation: ring 1s ease-out infinite;
+    box-shadow: 0 0 0 0 rgba(248,113,113,0.6);
+  }
+  #mic-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; animation: none; }
+
+  #clear-btn {
+    padding: 10px 20px; background: transparent;
+    border: 1px solid var(--border); color: var(--muted);
+    font-size: 12px; font-family: 'DM Mono', monospace;
+  }
+  #clear-btn:hover { border-color: var(--muted); color: var(--text); }
+
+  .hint { text-align: center; font-size: 11px; color: var(--muted); }
+
+  /* ── Welcome ── */
+  .welcome {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; flex: 1; gap: 12px; color: var(--muted);
+    text-align: center; padding: 40px;
+  }
+  .welcome-orb {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent) 0%, #c084fc 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; margin-bottom: 8px;
+    box-shadow: 0 0 40px rgba(124,106,247,0.3);
+  }
+  .welcome h2 { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: var(--text); }
+  .welcome p  { font-size: 13px; line-height: 1.7; max-width: 320px; }
+
+  /* ── Animations ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes blink {
+    0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+    40%           { opacity: 1;   transform: scale(1.1); }
+  }
+  @keyframes ring {
+    0%   { box-shadow: 0 0 0 0 rgba(248,113,113,0.6); }
+    70%  { box-shadow: 0 0 0 16px rgba(248,113,113,0); }
+    100% { box-shadow: 0 0 0 0 rgba(248,113,113,0); }
+  }
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 8px rgba(124,106,247,0.4); }
+    50%       { box-shadow: 0 0 20px rgba(124,106,247,0.8); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-orb">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+    </div>
+    <h1>Voice<span>Chat</span></h1>
+    <div class="status-pill">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">ready</span>
+    </div>
+  </header>
+
+  <!-- Chat messages -->
+  <div id="chat">
+    <div class="welcome" id="welcome">
+      <div class="welcome-orb">🎙️</div>
+      <h2>Start talking</h2>
+      <p>Press the mic button, speak your message, and release. I'll transcribe and respond.</p>
+    </div>
+  </div>
+
+  <!-- Waveform bars -->
+  <div id="visualizer-wrap">
+    <!-- bars injected by JS -->
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div id="timer"></div>
+    <div class="btn-row">
+      <button class="btn" id="clear-btn">✕ clear</button>
+      <button class="btn" id="mic-btn" title="Hold to record">🎙️</button>
+    </div>
+    <div class="hint" id="hint">press mic to speak</div>
+  </div>
+
+</div>
+
+<script>
+const API = '';  // empty = same origin; set to 'http://localhost:8000' for dev
+const micBtn   = document.getElementById('mic-btn');
+const chat     = document.getElementById('chat');
+const welcome  = document.getElementById('welcome');
+const hint     = document.getElementById('hint');
+const timerEl  = document.getElementById('timer');
+const vizWrap  = document.getElementById('visualizer-wrap');
+const statusDot  = document.getElementById('status-dot');
+const statusText = document.getElementById('status-text');
+
+// ── Waveform bars ──────────────────────────────────────────
+const BAR_COUNT = 28;
+for (let i = 0; i < BAR_COUNT; i++) {
+  const b = document.createElement('div');
+  b.className = 'bar';
+  vizWrap.appendChild(b);
+}
+const bars = vizWrap.querySelectorAll('.bar');
+
+let analyser, animFrame;
+function startViz(stream) {
+  const ctx = new AudioContext();
+  const src = ctx.createMediaStreamSource(stream);
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 64;
+  src.connect(analyser);
+  vizWrap.classList.add('active');
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  function draw() {
+    animFrame = requestAnimationFrame(draw);
+    analyser.getByteFrequencyData(data);
+    bars.forEach((b, i) => {
+      const v = data[i] || 0;
+      b.style.height = Math.max(4, v / 3) + 'px';
+    });
+  }
+  draw();
+}
+function stopViz() {
+  cancelAnimationFrame(animFrame);
+  vizWrap.classList.remove('active');
+  bars.forEach(b => b.style.height = '6px');
+}
+
+// ── Recording state ────────────────────────────────────────
+let mediaRecorder, chunks = [], recording = false;
+let timerInterval, seconds = 0;
+
+function setStatus(state, text) {
+  statusText.textContent = text;
+  statusDot.className = 'status-dot' + (state === 'off' ? ' off' : '');
+}
+
+function startTimer() {
+  seconds = 0;
+  timerInterval = setInterval(() => {
+    seconds++;
+    timerEl.textContent = `● REC  ${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+  }, 1000);
+}
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerEl.textContent = '';
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => chunks.push(e.data);
+    mediaRecorder.onstop = () => sendAudio(stream);
+    mediaRecorder.start();
+    recording = true;
+    micBtn.classList.add('recording');
+    micBtn.textContent = '⏹';
+    hint.textContent = 'recording... press again to stop';
+    setStatus('rec', 'recording');
+    startTimer();
+    startViz(stream);
+  } catch (e) {
+    alert('Microphone access denied. Please allow mic access.');
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && recording) {
+    mediaRecorder.stop();
+    recording = false;
+    micBtn.classList.remove('recording');
+    micBtn.textContent = '🎙️';
+    micBtn.disabled = true;
+    hint.textContent = 'processing...';
+    setStatus('off', 'processing');
+    stopTimer();
+    stopViz();
+  }
+}
+
+micBtn.addEventListener('click', () => {
+  if (!recording) startRecording();
+  else stopRecording();
+});
+
+// ── Send audio to backend ──────────────────────────────────
+async function sendAudio(stream) {
+  stream.getTracks().forEach(t => t.stop());
+  const blob = new Blob(chunks, { type: 'audio/webm' });
+
+  // Show user bubble with spinner
+  removeWelcome();
+  const userBubble = addMessage('user', '<div class="label">YOU</div><div class="thinking"><span></span><span></span><span></span></div>');
+
+  try {
+    const fd = new FormData();
+    fd.append('file', blob, 'audio.webm');
+
+    // Step 1: transcribe
+    const sttRes = await fetch(`${API}/transcribe`, { method: 'POST', body: fd });
+    const sttData = await sttRes.json();
+    const transcript = sttData.transcript || '(no speech detected)';
+    userBubble.querySelector('.bubble').innerHTML = `<div class="label">YOU</div>${transcript}`;
+
+    // Step 2: get bot reply text
+    const fd2 = new FormData();
+    fd2.append('file', blob, 'audio.webm');
+    const chatRes = await fetch(`${API}/chat`, { method: 'POST', body: fd2 });
+    const chatData = await chatRes.json();
+    const reply = chatData.reply;
+
+    // Step 3: show bot thinking
+    const botBubble = addMessage('bot', '<div class="label">ASSISTANT</div><div class="thinking"><span></span><span></span><span></span></div>');
+
+    // Step 4: get TTS audio
+    const ttsRes = await fetch(`${API}/speak`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: reply })
+    });
+    const audioBlob = await ttsRes.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+
+    // Update bot bubble with reply
+    botBubble.querySelector('.bubble').innerHTML = `<div class="label">ASSISTANT</div>${reply}`;
+
+    // Play audio
+    setStatus('on', 'speaking');
+    audio.play();
+    audio.onended = () => {
+      setStatus('on', 'ready');
+      micBtn.disabled = false;
+      hint.textContent = 'press mic to speak';
+    };
+
+  } catch (err) {
+    console.error(err);
+    addMessage('bot', `<div class="label">ERROR</div>Failed to process: ${err.message}`);
+    micBtn.disabled = false;
+    hint.textContent = 'press mic to speak';
+    setStatus('on', 'ready');
+  }
+}
+
+// ── Chat helpers ───────────────────────────────────────────
+function removeWelcome() {
+  if (welcome && welcome.parentNode) welcome.remove();
+}
+
+function addMessage(role, html) {
+  const msg = document.createElement('div');
+  msg.className = `msg ${role}`;
+  msg.innerHTML = `
+    <div class="avatar">${role === 'user' ? 'U' : 'A'}</div>
+    <div class="bubble">${html}</div>
+  `;
+  chat.appendChild(msg);
+  chat.scrollTop = chat.scrollHeight;
+  return msg;
+}
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  chat.innerHTML = '';
+  chat.appendChild(welcome);
+  welcome.style.display = 'flex';
+});
+</script>
+</body>
+</html>
