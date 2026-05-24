@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  voicechat:
+    build: .
+    container_name: voicechat-app
+    ports:
+      - "8000:8000"         # FastAPI + frontend on http://localhost:8000
+    volumes:
+      - ./static:/app/static   # live reload frontend without rebuild
+      - whisper-cache:/root/.cache/whisper  # cache downloaded Whisper model
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+volumes:
+  whisper-cache:            # persists Whisper model between container restarts
